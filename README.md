@@ -129,3 +129,8 @@ create table public.translations (
 
 ---
 
+### System Design
+
+![System Design Diagram](https://github.com/ParagShah97/HeliumBackend/raw/main/screenshot/system%20design.png)
+
+
