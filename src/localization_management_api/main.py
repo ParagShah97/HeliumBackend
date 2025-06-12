@@ -10,6 +10,15 @@ from .auth import get_current_user
 import csv
 from io import StringIO
 
+# What are the improvement can be made
+# 1. We can use SQLAlchemy to add the ORM rather directly calling SQL APIs.
+# 2. Seperate file for all the models (POJOs).
+# 3. Add new language support: All the keys present in the DB for all other languages will be
+#    available for new languages as well with an empty field.
+# 4. Add new project: Here need to add new entry to the project table, all the added key will have
+#    new project_id.)
+# 5. Add support for multiple file type like (.xlsx, XML, JSON).
+
 load_dotenv()
 
 app = FastAPI()
@@ -20,6 +29,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# BaseModel - it gives classes superpowers like validation and type coercion.
 class AddRequest(BaseModel):
     key: str
     value: str
@@ -36,6 +46,7 @@ class UpdateRequest(BaseModel):
     updated_by: str
 
 
+# Resolve CORS issue 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # or ["http://localhost:3000"] for now keeping *
@@ -44,12 +55,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+# API call to get the user information (like email) after validating the token.
 @app.get("/profile")
 async def get_profile(user=Depends(get_current_user)):
     return {"user": user.email}
 
-
+# GET localization: return all the projects and supported languages.
 @app.get("/localizations/")
 async def get_projects_and_langs(user=Depends(get_current_user)):
     try:
@@ -63,6 +74,7 @@ async def get_projects_and_langs(user=Depends(get_current_user)):
 
 ## This is the endpoint to get the localizations for a project and locale
 ## It returns a JSON object with the localizations for the project and locale
+## It will take project_id and locale as path parameter.
 @app.get("/localizations/{project_id}/{locale}")
 async def get_localizations(project_id: str, locale: str, user=Depends(get_current_user)):
     # return {"project_id": project_id, "locale": locale, "localizations": {"greeting": "Hello", "farewell": "Goodbye"}}
@@ -102,14 +114,16 @@ async def get_localizations(project_id: str, locale: str, user=Depends(get_curre
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+# Post localization: It takes peoject_id as path parameter and AddRequest (pydentic model) as request body.
+# Add new key, value, lang, category, description to the database.
+# Here, the key will be shared across all the languages (support by the application)
 @app.post("/localizations/{project_id}")
 async def add_translation(project_id: str, body: AddRequest, user=Depends(get_current_user)):
     try:
 
         response = supabase.table("language_store").select("*").execute()
         langs = response.data
-        print(langs)
+        # print(langs)
 
         trans_key_data = {
             "id": str(uuid.uuid4()),
@@ -141,12 +155,15 @@ async def add_translation(project_id: str, body: AddRequest, user=Depends(get_cu
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Put localizations: Take project_id as path parameter, and UpdateRequest object as request body.
+# It can update description in translation_key table & value, updated_by property in translation table.
 @app.put("/localizations/{project_id}")
 async def update_translation(project_id: str, body: UpdateRequest, user=Depends(get_current_user)):
     try:
+               
+        # Validation can be added to check for the key, if checked by the postman. 
+        
         # Update the description in the translation_keys table
-        
-        
         key_update_resp = (
             supabase.table("translation_keys")
             .update({"description": body.description})
@@ -154,7 +171,6 @@ async def update_translation(project_id: str, body: UpdateRequest, user=Depends(
             .eq("key", body.key)
             .execute()
         )
-    
 
         # Update the value and updated_by in the translations table
         translation_update_resp = (
@@ -168,12 +184,12 @@ async def update_translation(project_id: str, body: UpdateRequest, user=Depends(
             .execute()
         )
 
-
         return {"status": "success", "key_id": body.key}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+# Delete: localization: it takes project_id and key as path parameter.
 @app.delete("/localizations/{project_id}/{key}")
 async def delete_translation_key(project_id: str, key: str, user=Depends(get_current_user)):
     try:
@@ -189,9 +205,11 @@ async def delete_translation_key(project_id: str, key: str, user=Depends(get_cur
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-
+# Post localization/upload: It takes project_id and language as path parameter.
+# And take File object as request body.
 @app.post("/localizations/upload/{project_id}/{lang}")
 async def upload_csv(project_id: str, lang: str, file: UploadFile = File(...), user=Depends(get_current_user)):
+    # Check if the file name ends with CSV
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
 
@@ -203,6 +221,7 @@ async def upload_csv(project_id: str, lang: str, file: UploadFile = File(...), u
     lang_ids = {lang['id'] for lang in langs}
     uploaded_keys = []
 
+    # Case if checked from Postman or CLI
     if lang not in lang_ids:
         raise HTTPException(status_code=400, detail=f"Invalid language '{lang}'")
 
