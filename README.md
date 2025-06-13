@@ -46,7 +46,7 @@ The API will be available at `http://127.0.0.1:8000`.
 ### Example Usage
 
 To get localizations for a project, you can access:
-`http://127.0.0.1:8000/localizations/your_project_id/en_US`
+`http://127.0.0.1:8000/localizations/your_project_id/en`
 
 ### Database Schema from SupaBase
 ```bash
